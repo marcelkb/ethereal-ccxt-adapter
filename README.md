@@ -46,14 +46,17 @@ L1_WALLET_ADDRESS= Your Ethereal main wallet Adddress
 from ethereal_ccxt_adapter import Ethereal
 from ethereal_ccxt_adapter.const import EOrderSide, EOrderType
 
-    load_dotenv(".env.ethereal")
+    load_dotenv(env.ethereal)
     PRIVATE_KEY = os.environ.get("PRIVATE_KEY")
+    WALLET_ADDRESS = os.environ.get("WALLET_ADDRESS")
     L1_WALLET_ADDRESS = os.environ.get("L1_WALLET_ADDRESS")
-   
-     exchange = Ethereal({
+
+    exchange = Ethereal({
         'l1_wallet_address': L1_WALLET_ADDRESS,
         "private_key": PRIVATE_KEY,
+        "wallet_address": WALLET_ADDRESS,
     })
+    
     symbol = 'SOL/USD:USD'  # market symbol
     AMOUNT = 0.1
 

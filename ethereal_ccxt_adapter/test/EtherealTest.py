@@ -13,13 +13,16 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 def main():
     load_dotenv()
     PRIVATE_KEY = os.environ.get("PRIVATE_KEY")
+    WALLET_ADDRESS = os.environ.get("WALLET_ADDRESS")
+
     L1_WALLET_ADDRESS = os.environ.get("L1_WALLET_ADDRESS")
 
     exchange = Ethereal({
         'l1_wallet_address': L1_WALLET_ADDRESS,
         "private_key": PRIVATE_KEY,
+        "wallet_address": WALLET_ADDRESS,
     })
-    symbol = 'SOL/USD:USD'  # market symbol
+    symbol = 'BTC/USD:USD'  # market symbol
 
     ORDER_PLACEMENT = True
     AMOUNT = 0.1

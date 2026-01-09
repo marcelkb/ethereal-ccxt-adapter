@@ -2,7 +2,7 @@ import asyncio
 import math
 import random
 import time
-from decimal import Decimal, ROUND_CEILING
+from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta
 from uuid import UUID
@@ -20,7 +20,7 @@ from ccxt.base.types import (
     Order,
     Position,
     Balances,
-    FundingRate, Int,
+    FundingRate, Int, Str,
 )
 
 from ethereal import AsyncRESTClient
@@ -53,7 +53,6 @@ def run(coro):
 # ETHEREAL CCXT WRAPPER
 # =========================================================
 class Ethereal(ccxt.Exchange):
-
     id = "ethereal"
     name = "Ethereal"
     rateLimit = 1000
@@ -62,15 +61,18 @@ class Ethereal(ccxt.Exchange):
     def __init__(self, config: Dict[str, Any] = {}):
         super().__init__(config)
 
+        self.id = "ethereal"
+        self.name = "Ethereal"
+
         self.walletAddress = self.safe_string(config, 'wallet_address', self.walletAddress)
         self.privateKey = self.safe_string(config, 'private_key', self.privateKey)
         self.l1WalletAddress = self.safe_string(config, 'l1_wallet_address')
 
-        self.client:AsyncRESTClient = run(AsyncRESTClient.create({
+        self.client: AsyncRESTClient = run(AsyncRESTClient.create({
             "base_url": "https://api.ethereal.trade",
             "chain_config": {
-                 "rpc_url": "https://rpc.ethereal.trade",
-                 "private_key": self.privateKey,
+                "rpc_url": "https://rpc.ethereal.trade",
+                "private_key": self.privateKey,
             }
         }))
 
@@ -133,9 +135,9 @@ class Ethereal(ccxt.Exchange):
         self.name = "Ethereal"
         self.rateLimit = 1000
 
-        account:SubaccountDto = self.main_account()
+        account: SubaccountDto = self.main_account()
         self.main_account_id = account.id
-        self.main_account_name= account.name
+        self.main_account_name = account.name
 
     # -----------------------------------------------------
     # Helpers
@@ -202,8 +204,8 @@ class Ethereal(ccxt.Exchange):
         market = self.markets[symbol]
 
         id = market["id"]
-        #liquidity:MarketLiquidityDto = run(self.client.get_market_liquidity(product_id=id))
-        price:MarketPriceDto =  run(self.client.list_market_prices(product_ids=[id]))[0]
+        # liquidity:MarketLiquidityDto = run(self.client.get_market_liquidity(product_id=id))
+        price: MarketPriceDto = run(self.client.list_market_prices(product_ids=[id]))[0]
 
         ts = self.milliseconds()
         return {
@@ -238,9 +240,10 @@ class Ethereal(ccxt.Exchange):
         self.load_markets()
         if symbol is not None:
             market = self.markets[symbol]
-            trades = run(self.client.list_fills(subaccount_id = self.main_account_id, product_ids=[market["id"]], limit=limit))
+            trades = run(
+                self.client.list_fills(subaccount_id=self.main_account_id, product_ids=[market["id"]], limit=limit))
         else:
-            trades = run(self.client.list_fills(subaccount_id = self.main_account_id, limit=limit))
+            trades = run(self.client.list_fills(subaccount_id=self.main_account_id, limit=limit))
 
         out = []
 
@@ -262,7 +265,6 @@ class Ethereal(ccxt.Exchange):
     def fetch_my_trades(self, symbol=None, since=None, limit=100, params={}):
         return self.fetch_trades(symbol, since, limit, params)
 
-
     def main_account(self) -> SubaccountDto:
         sub_accounts = run(self.client.list_subaccounts(sender=self.l1WalletAddress))
         return sub_accounts[0]
@@ -271,7 +273,8 @@ class Ethereal(ccxt.Exchange):
     # BALANCE
     # -----------------------------------------------------
     def fetch_balance(self, params={}) -> Balances:
-        balances:List[SubaccountBalanceDto] = run(self.client.get_subaccount_balances(subaccount_id=self.main_account_id))
+        balances: List[SubaccountBalanceDto] = run(
+            self.client.get_subaccount_balances(subaccount_id=self.main_account_id))
         result = {
             "info": [b.model_dump() for b in balances]
         }
@@ -299,7 +302,8 @@ class Ethereal(ccxt.Exchange):
             notional = p.total_increase_notional
 
             parsed.append({
-                "info": self.extend(p.model_dump(), {"unrealisedPnl": 0, "curRealisedPnl": p.realized_pnl, "size": p.size}),
+                "info": self.extend(p.model_dump(),
+                                    {"unrealisedPnl": 0, "curRealisedPnl": p.realized_pnl, "size": p.size, "positionValue":notional}),
                 "symbol": symbol,
                 "side": side,
                 "contracts": float(p.size),
@@ -307,7 +311,7 @@ class Ethereal(ccxt.Exchange):
                 "markPrice": price,
                 "notional": notional,
                 "leverage": self.fetch_leverage(symbol),
-                "unrealisedPnl":0,
+                "unrealisedPnl": 0,
                 "marginMode": "cross",
                 "liquidationPrice": 0,
                 "pnl": p.realized_pnl,
@@ -379,10 +383,12 @@ class Ethereal(ccxt.Exchange):
             return None
 
         funding = rate.funding_rate1h
-        funding1Y = round(float(funding) * 24 * 365,4)
+        funding1Y = round(float(funding) * 24 * 365, 4)
 
         return {
-            "info":self.extend({"symbol":symbol, "fundingRate":funding, "interval": "1h", "fundingRateAnnualized": funding1Y}, rate.model_dump()),
+            "info": self.extend(
+                {"symbol": symbol, "fundingRate": funding, "interval": "1h", "fundingRateAnnualized": funding1Y},
+                rate.model_dump()),
             "symbol": symbol,
             "fundingRate": funding,
             "fundingTimestamp": None,
@@ -401,11 +407,26 @@ class Ethereal(ccxt.Exchange):
 
         return out
 
-    def round_price_to_tick(self, price, tick_size):
-        price = Decimal(str(price))
-        tick = Decimal(str(tick_size))
+    def round_to_step(self, value, step, rounding):
+        return (value / step).to_integral_value(rounding=rounding) * step
 
-        return (price / tick).to_integral_value(rounding=ROUND_CEILING) * tick
+    def normalize_order(self, market, price, amount, side):
+        price = Decimal(str(price))
+        amount = Decimal(str(amount))
+
+        # PRICE
+        price_precision = market["precision"]["price"]
+        price_tick = Decimal("10") ** -price_precision
+        price_rounding = ROUND_CEILING if side == "sell" else ROUND_FLOOR
+        price = self.round_to_step(price, price_tick, price_rounding)
+
+        # AMOUNT
+        amount_precision = market["precision"]["amount"]
+        lot_size = Decimal("10") ** -amount_precision
+        amount = self.round_to_step(amount, lot_size, ROUND_FLOOR)
+
+        return price, amount
+
 
     # -----------------------------------------------------
     # ORDERS
@@ -451,54 +472,63 @@ class Ethereal(ccxt.Exchange):
         close_side = 0 if side.lower() == "buy" else 1
 
         # assert price is a multiple of tick size, exchange condition
-        precision = market["precision"]["amount"]
-        tick_size = 1**-precision
-        valid_price = self.round_price_to_tick(price, tick_size)
-        if valid_price != price:
-            print(f"adjust price to multiple of tick size: {tick_size}, {price}, {valid_price}")
+        price = Decimal(str(price))
+        amount = Decimal(str(amount))
 
-        # ----------------------------
-        # TAKE PROFIT
-        # ----------------------------
-        if tp_price is not None:
-            order = run(self.client.create_order(
-                subaccount=self.main_account_name,
-                product_id=market["id"],
-                side=close_side,
-                order_type="MARKET",
-                quantity=amount,
-                stop_price=tp_price,
-                stop_type=0,
-                reduce_only=True,
-            ))
 
-        # ----------------------------
-        # STOP LOSS
-        # ----------------------------
-        elif sl_price is not None:
-            order = run(self.client.create_order(
-                subaccount=self.main_account_name,
-                product_id=market["id"],
-                side=close_side,
-                order_type="MARKET",
-                quantity=amount,
-                stop_price=sl_price,
-                stop_type=1,
-                reduce_only=True,
-            ))
-        else:
+        try:
             # ----------------------------
-            # Create MAIN order
+            # TAKE PROFIT
             # ----------------------------
-            order = run(self.client.create_order(
-                subaccount=self.main_account_name,
-                product_id=market["id"],
-                side=mapped_side,
-                order_type=type.upper(),
-                quantity=amount,
-                price=float(valid_price),
-                reduce_only=reduce_only,
-            ))
+            if tp_price is not None:
+                tp_price, amount = self.normalize_order(market, tp_price, amount, close_side)
+                order = run(self.client.create_order(
+                    subaccount=self.main_account_name,
+                    sender=self.walletAddress,
+                    product_id=market["id"],
+                    side=close_side,
+                    order_type="MARKET",
+                    quantity=amount,
+                    stop_price=tp_price,
+                    stop_type=0,
+                    reduce_only=True,
+                ))
+
+            # ----------------------------
+            # STOP LOSS
+            # ----------------------------
+            elif sl_price is not None:
+                sl_price, amount = self.normalize_order(market, sl_price, amount, close_side)
+                order = run(self.client.create_order(
+                    subaccount=self.main_account_name,
+                    sender=self.walletAddress,
+                    product_id=market["id"],
+                    side=close_side,
+                    order_type="MARKET",
+                    quantity=amount,
+                    stop_price= sl_price,
+                    stop_type=1,
+                    reduce_only=True,
+                ))
+            else:
+                # ----------------------------
+                # Create MAIN order
+                # ----------------------------
+                price, amount = self.normalize_order(market, price, amount, side)
+                order = run(self.client.create_order(
+                    subaccount=self.main_account_name,
+                    sender=self.walletAddress,
+                    product_id=market["id"],
+                    side=mapped_side,
+                    order_type=type.upper(),
+                    quantity=amount,
+                    price= price,
+                    reduce_only=reduce_only,
+                ))
+        except Exception as e:
+            print(f"error occured: {e}")
+            raise InvalidOrder(self.id + ' ' + str(e))
+            return None
 
         if order.filled == amount:
             status = EOrderStatus.FILLED
@@ -515,9 +545,21 @@ class Ethereal(ccxt.Exchange):
             "symbol": symbol,
             "type": type,
             "side": side,
-            "price": price,
-            "amount": amount,
-            'cost': None,
+            "price": float(price),
+            "amount": float(amount),
+            'cost': 0,
+            'fees':
+            {
+                'cost': 0,
+                'currency': 'USDC',
+                'rate': 0.004
+            },
+            'fee':
+                {
+                    'cost': 0,
+                    'currency': 'USDC',
+                    'rate': 0.004
+                },
             'average': None,
             'filled': None,
             'remaining': None,
@@ -527,7 +569,7 @@ class Ethereal(ccxt.Exchange):
 
     def cancel_order(self, id: str, symbol=None, params={}) -> Order:
         try:
-            run(self.client.cancel_orders(subaccount=self.main_account_name, order_ids=[id]))
+            run(self.client.cancel_orders(subaccount=self.main_account_name, sender=self.walletAddress, order_ids=[id]))
         except Exception:
             raise OrderNotFound(id)
 
@@ -550,8 +592,8 @@ class Ethereal(ccxt.Exchange):
                 "symbol": sym,
                 "side": EOrderSide.BUY if o.side == 0 else EOrderSide.SELL,
                 "type": str(o.type).lower(),
-                "price": o.price,
-                "amount": o.quantity,
+                "price": float(o.price),
+                "amount": float(o.quantity),
                 "filled": float(o.filled),
                 "status": EOrderStatus.valueOf(str(o.status.value).lower()),
                 "info": o.model_dump(),
