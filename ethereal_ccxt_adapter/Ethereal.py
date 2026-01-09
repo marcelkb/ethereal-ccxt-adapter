@@ -535,6 +535,8 @@ class Ethereal(ccxt.Exchange):
         else:
             status = EOrderStatus.OPEN
 
+        fee = float(self.fees["swap"]["taker"]) * float(amount) * float(price)
+
         return {
             "info": order,
             "id": order.id,
@@ -550,13 +552,13 @@ class Ethereal(ccxt.Exchange):
             'cost': 0,
             'fees':
             {
-                'cost': 0,
+                'cost': fee,
                 'currency': 'USDC',
                 'rate': 0.004
             },
             'fee':
                 {
-                    'cost': 0,
+                    'cost': fee,
                     'currency': 'USDC',
                     'rate': 0.004
                 },

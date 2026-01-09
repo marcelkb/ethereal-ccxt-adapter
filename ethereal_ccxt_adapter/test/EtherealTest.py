@@ -22,10 +22,10 @@ def main():
         "private_key": PRIVATE_KEY,
         "wallet_address": WALLET_ADDRESS,
     })
-    symbol = 'BTC/USD:USD'  # market symbol
+    symbol = 'SOL/USD:USD'  # market symbol
 
     ORDER_PLACEMENT = True
-    AMOUNT = 0.1
+    AMOUNT = 0.01
 
     # load markets
     exchange.load_markets()
