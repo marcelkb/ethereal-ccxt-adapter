@@ -9,6 +9,8 @@ A CCXT-compatible adapter/wrapper for the Ethereal Python SDK. It maps Ethereal 
 - CCXT: https://github.com/ccxt/ccxt
 - Ethereal SDK (Python): https://pypi.org/project/ethereal-sdk/
 
+- DOES NOT IMPLEMENT ALL METHODS OR SHOW ALL VALUES, USE WITH CAUTION
+
 # Features
 
 - CCXT-style API backed by the Ethereal SDK
