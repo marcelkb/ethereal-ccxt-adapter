@@ -1,0 +1,3 @@
+python-dotenv
+ccxt
+ethereal-sdk
