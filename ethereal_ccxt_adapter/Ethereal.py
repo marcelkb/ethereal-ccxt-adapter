@@ -253,7 +253,7 @@ class Ethereal(ccxt.Exchange):
                 "timestamp": t.created_at,
                 "datetime": self.iso8601(int(t.created_at)),
                 "symbol": symbol,
-                "side": str(t.side).lower(),
+                "side": str(t.side.name).lower(),
                 "price": t.price,
                 "amount": t.filled,
                 "cost": float(t.price) * float(t.filled),
@@ -298,7 +298,7 @@ class Ethereal(ccxt.Exchange):
             symbol = self.market_symbol(p.product_id)
             price = self.fetch_ticker(symbol)
 
-            side = "long" if float(p.size) > 0 else "short"
+            side = "buy" if float(p.size) > 0 else "sell"
             notional = p.total_increase_notional
 
             parsed.append({
@@ -307,6 +307,7 @@ class Ethereal(ccxt.Exchange):
                 "symbol": symbol,
                 "side": side,
                 "contracts": float(p.size),
+                "amount": float(p.size),
                 "entryPrice": 0,
                 "markPrice": price,
                 "notional": notional,
