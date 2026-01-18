@@ -641,5 +641,8 @@ class Ethereal(ccxt.Exchange):
     def fetch_margin_mode(self, symbol: str, params={}):
         return "cross"
 
+    def set_margin_mode(self, marginMode: str, symbol: Str = None, params={}):
+        return None
+
     def close(self):
         return run(self.client.close())
