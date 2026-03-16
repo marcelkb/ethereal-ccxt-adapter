@@ -309,7 +309,7 @@ class Ethereal(ccxt.Exchange):
                 "contracts": float(p.size),
                 "amount": float(p.size),
                 "entryPrice": 0,
-                "markPrice": price,
+                "markPrice": price["last"],
                 "notional": notional,
                 "leverage": self.fetch_leverage(symbol),
                 "unrealisedPnl": 0,
@@ -369,8 +369,9 @@ class Ethereal(ccxt.Exchange):
             limit: Optional[int] = None,
             params: Dict = {},
     ) -> List[List[float]]:
-
-        raise NotSupported(self.id + ' fetch_ohlcv() is not supported yet')
+        exchange_delegate = ccxt.binance()
+        symbol = symbol.replace("USD", "USDT")
+        return exchange_delegate.fetch_ohlcv(symbol, timeframe, since, limit, params)
 
     # -----------------------------------------------------
     # FUNDING
@@ -640,9 +641,6 @@ class Ethereal(ccxt.Exchange):
 
     def fetch_margin_mode(self, symbol: str, params={}):
         return "cross"
-
-    def set_margin_mode(self, marginMode: str, symbol: Str = None, params={}):
-        return None
 
     def close(self):
         return run(self.client.close())
